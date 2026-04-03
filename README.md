@@ -24,6 +24,8 @@ The proxy is being extended with a "chaos engine" to inject faults into live tra
 
 These features aim to simulate real-world network instability and test backend resilience.
 
+***The proxy listens internally on port 5050*
+
 ## Usage
 
 ```bash
