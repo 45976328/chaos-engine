@@ -19,16 +19,26 @@ Connection::~Connection(){}
 int Connection::readfront(){
     if (ftbbytes != 0) return 0; // buffer still has unsent data
     ftb_offset = 0;
-    return ftbbytes = recv(frontfd, front_to_back_buff, BUFFER_SIZE, 0);
+	ftbbytes = recv(frontfd, front_to_back_buff, BUFFER_SIZE, 0);
+	request = true;
+	ce.dispatch(); // chaos engine dispatch
+	request = false;
+    return ftbbytes;
 }
 
 int Connection::readback(){
     if (btfbytes != 0) return 0; // buffer still has unsent data
     btf_offset = 0;
+	request = true;
+	ce.dispatch(); // chaos engine dispatch
+	request = false;
     return btfbytes = recv(backfd, back_to_front_buff, BUFFER_SIZE, 0);
 }
 
 int Connection::writefront(){
+	response = true;
+	ce.dispatch();// chaos engine dispatch
+	response = false;
     int sent = send(frontfd, back_to_front_buff + btf_offset, btfbytes, 0);
     if (sent > 0){
         btf_offset += sent;
@@ -39,7 +49,10 @@ int Connection::writefront(){
 }
 
 int Connection::writeback(){
-    int sent = send(backfd, front_to_back_buff + ftb_offset, ftbbytes, 0);
+	response = true;
+	ce.dispatch();// chaos engine dispatch
+	response = false;
+    int sent = send(backfd, front_to_back_buff + ftb_offset, ftbbytes, 0); // TODO https://man7.org/linux/man-pages/man2/send.2.html FIND OUT IF ftbbytes affects send
     if (sent > 0){
         ftb_offset += sent;
         ftbbytes -= sent;
@@ -94,16 +107,6 @@ void Epoll::removefd(int fd){
          }
 }
 
-
-
-ProxyServer::ProxyServer(){
-
-	front.startListening();
-	
-	epoll.addfd(front.getListeningSocket(), EPOLLIN);
-
-}
-
 ProxyServer::ProxyServer(int port, char* backip){
 	this->port = port;
 	this->backip = backip;
@@ -116,7 +119,33 @@ ProxyServer::ProxyServer(int port, char* backip){
 
 ProxyServer::~ProxyServer(){}
 
-void ProxyServer::addconnections(){ //add events[i] as argument
+void ProxyServer::clean(struct epoll_event event){
+	// Check if already cleaned
+    if (fdmap.find(event.data.fd) == fdmap.end()){
+        return;
+	}
+	Connection* conn = fdmap[event.data.fd];
+
+    int frontfd = conn->getfrontfd();
+    int backfd  = conn->getbackfd();
+
+    // Remove from epoll
+    epoll.removefd(frontfd);
+    epoll.removefd(backfd);
+
+    // Close sockets
+    close(frontfd);
+    close(backfd);
+
+    // Remove both entries from map
+    fdmap.erase(frontfd);
+    fdmap.erase(backfd);
+
+    // Free memory
+    delete conn;
+}
+
+void ProxyServer::addconnections(){
 	while(true){
 		int clientfd = front.acceptClient();
 
@@ -127,7 +156,7 @@ void ProxyServer::addconnections(){ //add events[i] as argument
 				continue; //Interrupted by signal, retry accept
 			}else{ // Actual error
 				cout << "ERROR: accept\n";
-				break;
+				break; // return;
 			}
 		}
 
@@ -156,6 +185,12 @@ void ProxyServer::mainloop(){
 		eventsready = epoll.wait();
 
 		for (int i = 0; i<eventsready; i++){
+			//TODO likely fix on segmentation fault bug
+			// auto it = fdmap.find(events[i].data.fd);
+			// if (it == fdmap.end())
+			// 	continue;
+			// Connection* conn = it->second;
+
 			if (events[i].data.fd == front.getListeningSocket()){ // check if event triggered is Listening Socket fd
 				this->addconnections();
 			}else{
@@ -167,13 +202,16 @@ void ProxyServer::mainloop(){
 							epoll.modfd(fdmap[events[i].data.fd]->getfrontfd(), EPOLLIN | EPOLLOUT);							
 						}else if (bytes == 0){// peer closed cleanup connection
 							//remove front and back fd from interest list close fds remove from fdmap
+							clean(events[i]);
+    						continue;
 						}else{
 							if (errno == EAGAIN){ //no more bytes available right now, dont disable EPOLLOUT
 								continue;
 							}else{
 								//cleanup connection
 								//remove front and back fd from interest list close fds remove from fdmap	
-								exit(1);							
+								clean(events[i]);
+    							continue;						
 							}
 						}
 						
@@ -183,13 +221,15 @@ void ProxyServer::mainloop(){
 						if (bytes > 0){ //enable EPOLLOUT on opposite socket
 							epoll.modfd(fdmap[events[i].data.fd]->getbackfd(), EPOLLIN | EPOLLOUT);
 						}else if (bytes == 0){// peer closed cleanup connection
-							
+							clean(events[i]);
+    						continue;
 						}else{
 							if (errno == EAGAIN){ //no more bytes available right now, dont disable EPOLLOUT
 								continue;
 							}else{
 								//cleanup connection
-								exit(1);
+								clean(events[i]);
+    							continue;
 							}
 						}
 					}
@@ -197,14 +237,15 @@ void ProxyServer::mainloop(){
 				}else if (events[i].events & EPOLLOUT){
 					if (fdmap[events[i].data.fd]->getbackfd() == events[i].data.fd){//Backfd writable
 						int bytes = fdmap[events[i].data.fd]->writeback();
-						if (bytes == 0){ // TODO siable EPOLLOUT only when buff is empty
+						if (bytes == 0){ // TODO disable EPOLLOUT only when buff is empty // and ftbbytes == 0 ?
 							epoll.modfd( fdmap[events[i].data.fd]->getbackfd(), EPOLLIN );
 						}else{
 							if (errno == EAGAIN){ //no more bytes available right now
 								continue;
 							}else{
 								//cleanup connection
-								exit(1);
+								clean(events[i]);
+    							continue;
 							}
 						}
 
@@ -217,17 +258,19 @@ void ProxyServer::mainloop(){
 								continue;
 							}else{
 								//cleanup connection
-								exit(1);
+								clean(events[i]);
+    							continue;
 							}
 						}
 					}
 
 				}else{ // events[i].events & (EPOLLERR | EPOLLHUP)
 					//Socket broken ... close it
+					clean(events[i]);
+    				continue;
 				}
 			}
+			//cout << "FD: " << events[i].data.fd << " EVENT: " << events[i].events << endl;
 		}
-	
-	}
-		
+	}	
 }

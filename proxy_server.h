@@ -3,6 +3,7 @@
 
 #include <sys/epoll.h>
 #include <errno.h>
+#include <chrono>
 #include <unordered_map> // https://www.geeksforgeeks.org/cpp/map-vs-unordered_map-c/
 
 #include "socket_server.h"
@@ -15,6 +16,7 @@
 class Connection{
 	private:
 		SocketClient back;
+
 		int frontfd;
 		int backfd;
 
@@ -24,6 +26,16 @@ class Connection{
 		char back_to_front_buff[BUFFER_SIZE];
 		int btfbytes = 0;
 		int btf_offset = 0;
+
+		bool request = false; //TODO PASS DIRECTION TO CHAOS ENGINE
+		bool response = false;
+
+		//CHRONO now() + release times + flags? (ce points to these variables since we have void on all functions) 
+		// On read, I ask ChaosEngine if delay applies. (dispatcher)
+		// If yes, I store a release timestamp in the Connection.
+		// On write, I check the timestamp before sending.”
+
+		ChaosEngine ce{front_to_back_buff, back_to_front_buff, request, response};
 
 	public:
 		Connection(int);
@@ -41,6 +53,8 @@ class Connection{
 
 		int readback();
 		int writeback();
+		
+		void clean(){close(frontfd); close(backfd);}
 };
 
 class Epoll{
@@ -74,11 +88,13 @@ class ProxyServer{
 				
 		unordered_map<int,Connection*> fdmap;
 	public:
-		ProxyServer();
+		// ProxyServer();
 		ProxyServer(int, char*);
 		~ProxyServer();
 
 		void addconnections();
+
+		void clean(struct epoll_event);
 
 		void mainloop();
 };

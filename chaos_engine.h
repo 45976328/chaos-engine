@@ -2,42 +2,63 @@
 #define CHAOS_ENGINE_H
 
 #include <iostream>
-#include <string>
+#include <cstring>
+#include <chrono>
+#include <fstream>
+#include <unordered_map>
+#include <random>
+
+#include "nlohmann/json.hpp"
+
+#define BUFFER_SIZE 4096
 
 using namespace std;
+using json = nlohmann::json;
 
 class ChaosEngine{
+    private:
+        char* front_to_back_buff;
+        char* back_to_front_buff;
+        ifstream f;
+        json j;
+        unordered_map <string,function<void()>> registry;
+
+        const bool& request; //TODO PASS DIRECTION TO CHAOS ENGINE
+		const bool& response;
+
     public:
-        ChaosEngine();
+        ChaosEngine(char (&)[], char (&)[], bool&, bool&);
         ~ChaosEngine();
 
+        void register_all();
+        void dispatch();
 
         // LOSS CHAOS
-        void chunk_drop(bool, int, string, string);
+        void chunk_drop();
         void directional_drop();
-        void probabilistic_drop();
-        void burst_loss();
-        void selective_drop();
+        // void probabilistic_drop();
+        // void burst_loss();
+        // void selective_drop();
 
         //CORRUPTION CHAOS
-        void byte_corruption(bool, int, string, string);
+        void byte_corruption();
         void bit_flipping();
         void header_corruption();
         void body_corruption();
-        void structured_corruption();
+        // void structured_corruption();
 
         //TIMING/LATENCY CHAOS
         void fixed_delay();
         void random_delay();
         void jitter();
-        void directional_latency();
-        void delay_first_byte();
-        void tail_latency_injection();
+        // void directional_latency();
+        // void delay_first_byte();
+        // void tail_latency_injection();
 
         //BANDWIDTH / THROUGHPUT SHAPING
-        void rate_limit();
+        // void rate_limit();
         void chunk_split();
-        void fragment();
+        // void fragment();
 
         //CONNECTION-LEVEL FAULTS
         void early_close();
@@ -48,12 +69,12 @@ class ChaosEngine{
         void force_reset();
 
         //PROTOCOL-AWARE FAULTS
-        void malform_request();
+        // void malform_request();
         void header_removal();
         void header_duplication();
         void wrong_content_length();
-        void truncate_body();
-        void invalid_crlf_format();
+        // void truncate_body();
+        // void invalid_crlf_format();
         void status_manipulation();
 
         //TRAFFIC SELECTION / TARGETING
@@ -72,16 +93,6 @@ class ChaosEngine{
         // number of corruptions
         // number of delayed events
         // number of forced closes
-
-        // Deterministic random seed
-
-        // Use a seed for your RNG.
-
-        // This means:
-
-        // same chaos run can be reproduced exactly
-
-        // This is extremely useful.
 
 };
 
