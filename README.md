@@ -29,4 +29,4 @@ These features aim to simulate real-world network instability and test backend r
 ## Usage
 
 ```bash
-./proxy -b <backend_ip> -p <backend_port>
+./proxy -b <backend_ip> -p <backend_port> -c <config_file_path>

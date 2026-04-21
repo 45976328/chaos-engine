@@ -1,10 +1,13 @@
 #include <iostream>
 #include <cstdlib>
 #include <string>
+#include <fstream>
+#include "nlohmann/json.hpp" // https://json.nlohmann.me/api/basic_json/
 
 #include "proxy_server.h"
 
 using namespace std;
+using json = nlohmann::json;
 
 void usage(const char* progname){
     cout << "Usage: " << progname << " [OPTIONS]\n\n";
@@ -70,9 +73,33 @@ int main(int argc, char* argv[]){
 
     if (useConfig) {
         cout << "Using config file: " << configPath << endl;
-        // TODO: parse JSON config here
-        // then override backendHost / backendPort from config
-        // unless CLI args already replaced them
+        ifstream f("config.json");
+        json j;
+
+        try{
+            j = json::parse(f); // https://json.nlohmann.me/features/assertions/
+
+        }catch(exception& e){ 
+            cerr << e.what() << endl;
+        }
+        // https://json.nlohmann.me/api/basic_json/dump/
+        // https://json.nlohmann.me/api/basic_json/at/
+
+        if(backendHost == "127.0.0.1"){ // if user hasnt changed host with arg then read from config
+            try{
+                backendHost = j.at("backend").at("host");
+            }catch(json::out_of_range& e){
+                cout<< "Could not find Host address in configuration file using : " << backendHost << endl;
+            }
+        }
+        if(backendPort == 5051){
+            try{
+                backendPort = j.at("backend").at("port");
+            }catch(json::out_of_range& e){
+                cout<< "Could not find Port in configuration file using : " << backendPort << endl;
+            }
+        }
+        f.close();
     }
 
     cout << "Backend host: " << backendHost << endl;

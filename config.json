@@ -1,0 +1,152 @@
+{
+  "backend": {
+    "host": "127.0.0.1",
+    "port": 5051
+  },
+
+  "chaos": {
+
+    "enabled": true,
+  
+    "chunk_drop": {
+      "enabled": true,
+      "rate": 0.05,
+      "direction": "request",
+      "mode": "full"
+    },
+    "burst_loss": {
+      "enabled": false,
+      "burst_size": 3,
+      "interval_ms": 1000
+    },
+    "selective_drop": {
+      "enabled": false,
+      "match": "GET",
+      "direction": "request"
+    },
+
+
+    "byte_corruption": {
+      "enabled": false,
+      "rate": 0.01,
+      "direction": "response",
+      "mode": "random"
+    },
+    "bit_flipping": {
+      "enabled": false,
+      "rate": 0.005
+    },
+    "header_corruption": {
+      "enabled": false
+    },
+    "body_corruption": {
+      "enabled": false
+    },
+
+
+
+    "fixed_delay": {
+      "enabled": false,
+      "delay_ms": 100,
+      "direction": "both"
+    },
+    "random_delay": {
+      "enabled": false,
+      "min_ms": 10,
+      "max_ms": 200
+    },
+    "jitter": {
+      "enabled": false,
+      "variance_ms": 50
+    },
+    "delay_first_byte": {
+      "enabled": false,
+      "delay_ms": 300
+    },
+    "tail_latency": {
+      "enabled": false,
+      "rate": 0.05,
+      "delay_ms": 500
+    },
+
+
+
+    "rate_limit": {
+      "enabled": false,
+      "bytes_per_sec": 1024
+    },
+    "chunk_split": {
+      "enabled": false,
+      "chunk_size": 64
+    },
+    "fragment": {
+      "enabled": false,
+      "fragment_size": 32
+    },
+
+
+
+    "early_close": {
+      "enabled": false,
+      "after_bytes": 100
+    },
+    "idle_timeout_kill": {
+      "enabled": false,
+      "timeout_ms": 5000
+    },
+    "connect_delay": {
+      "enabled": false,
+      "delay_ms": 200
+    },
+    "connection_refusal": {
+      "enabled": false,
+      "rate": 0.1
+    },
+    "force_reset": {
+      "enabled": false
+    },
+
+
+
+    "malform_request": {
+      "enabled": false
+    },
+    "header_removal": {
+      "enabled": false,
+      "header": "Host"
+    },
+    "header_duplication": {
+      "enabled": false,
+      "header": "Content-Length"
+    },
+    "wrong_content_length": {
+      "enabled": false
+    },
+    "truncate_body": {
+      "enabled": false,
+      "bytes": 10
+    },
+    "invalid_crlf": {
+      "enabled": false
+    },
+    "status_manipulation": {
+      "enabled": false,
+      "status_code": 500
+    },
+
+    "targeting": {
+      "direction": "both",
+      "methods": ["GET", "POST"],
+      "paths": ["/api", "/test"],
+      "headers": {
+        "User-Agent": "curl"
+      }
+    },
+
+    "observability": {
+      "logging": true,
+      "log_level": "debug",
+      "metrics": true
+    }
+  }
+}

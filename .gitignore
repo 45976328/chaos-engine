@@ -5,4 +5,3 @@
 /socket_client.o
 /socket_server.o
 /proxy
-/config.json
