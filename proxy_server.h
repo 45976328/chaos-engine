@@ -27,7 +27,7 @@ class Connection{
 		int btfbytes = 0;
 		int btf_offset = 0;
 
-		bool request = false; //TODO PASS DIRECTION TO CHAOS ENGINE
+		bool request = false;
 		bool response = false;
 
 		//CHRONO now() + release times + flags? (ce points to these variables since we have void on all functions) 
@@ -35,7 +35,7 @@ class Connection{
 		// If yes, I store a release timestamp in the Connection.
 		// On write, I check the timestamp before sending.”
 
-		ChaosEngine ce{front_to_back_buff, back_to_front_buff, request, response};
+		ChaosEngine ce{front_to_back_buff, back_to_front_buff, request, response, ftbbytes, ftb_offset, btfbytes, btf_offset};
 
 	public:
 		Connection(int);
@@ -55,6 +55,11 @@ class Connection{
 		int writeback();
 		
 		void clean(){close(frontfd); close(backfd);}
+
+		void cedispatch(){ce.dispatch();}
+		void setresp(bool response){this->response = response;}
+		void setreq(bool request){this->request = request;}
+
 };
 
 class Epoll{

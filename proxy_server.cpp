@@ -17,28 +17,20 @@ Connection::Connection(int frontfd, int port, char* backip): back(port, backip){
 Connection::~Connection(){}
 
 int Connection::readfront(){
-    if (ftbbytes != 0) return 0; // buffer still has unsent data
+    if (ftbbytes != 0) return -2; // buffer still has unsent data
     ftb_offset = 0;
 	ftbbytes = recv(frontfd, front_to_back_buff, BUFFER_SIZE, 0);
-	request = true;
-	ce.dispatch(); // chaos engine dispatch
-	request = false;
     return ftbbytes;
 }
 
 int Connection::readback(){
-    if (btfbytes != 0) return 0; // buffer still has unsent data
+    if (btfbytes != 0) return -2; // buffer still has unsent data
     btf_offset = 0;
-	request = true;
-	ce.dispatch(); // chaos engine dispatch
-	request = false;
-    return btfbytes = recv(backfd, back_to_front_buff, BUFFER_SIZE, 0);
+	btfbytes = recv(backfd, back_to_front_buff, BUFFER_SIZE, 0);
+    return btfbytes;
 }
 
 int Connection::writefront(){
-	response = true;
-	ce.dispatch();// chaos engine dispatch
-	response = false;
     int sent = send(frontfd, back_to_front_buff + btf_offset, btfbytes, 0);
     if (sent > 0){
         btf_offset += sent;
@@ -49,9 +41,6 @@ int Connection::writefront(){
 }
 
 int Connection::writeback(){
-	response = true;
-	ce.dispatch();// chaos engine dispatch
-	response = false;
     int sent = send(backfd, front_to_back_buff + ftb_offset, ftbbytes, 0); // TODO https://man7.org/linux/man-pages/man2/send.2.html FIND OUT IF ftbbytes affects send
     if (sent > 0){
         ftb_offset += sent;
@@ -185,25 +174,32 @@ void ProxyServer::mainloop(){
 		eventsready = epoll.wait();
 
 		for (int i = 0; i<eventsready; i++){
-			//TODO likely fix on segmentation fault bug
-			// auto it = fdmap.find(events[i].data.fd);
-			// if (it == fdmap.end())
-			// 	continue;
-			// Connection* conn = it->second;
-
+			
 			if (events[i].data.fd == front.getListeningSocket()){ // check if event triggered is Listening Socket fd
 				this->addconnections();
 			}else{
-				if (events[i].events & EPOLLIN){ //if you get EPOLLIN, find if its front or back then read
-					if (fdmap[events[i].data.fd]->getbackfd() == events[i].data.fd){ //Backfd readable
+				//TODO likely fix on segmentation fault bug
+				auto it = fdmap.find(events[i].data.fd);
+				if (it == fdmap.end())
+					continue;
+				Connection* conn = it->second;
 
-						int bytes = fdmap[events[i].data.fd]->readback();
+				if (events[i].events & EPOLLIN){ //if you get EPOLLIN, find if its front or back then read
+					if (conn->getbackfd() == events[i].data.fd){ //Backfd readable
+
+						int bytes = conn->readback();
 						if (bytes > 0){ //enable EPOLLOUT on opposite socket
-							epoll.modfd(fdmap[events[i].data.fd]->getfrontfd(), EPOLLIN | EPOLLOUT);							
+							conn->setresp(true);
+							conn->cedispatch(); // chaos engine dispatch // //TODO Return true if directional_drop triggered??? add if true  then clean ???
+							conn->setresp(false);
+
+							epoll.modfd(conn->getfrontfd(), EPOLLIN | EPOLLOUT);							
 						}else if (bytes == 0){// peer closed cleanup connection
 							//remove front and back fd from interest list close fds remove from fdmap
 							clean(events[i]);
     						continue;
+						}else if(bytes == -2){
+							continue;
 						}else{
 							if (errno == EAGAIN){ //no more bytes available right now, dont disable EPOLLOUT
 								continue;
@@ -216,13 +212,19 @@ void ProxyServer::mainloop(){
 						}
 						
 					}else{//frontfd readable
-						int bytes = fdmap[events[i].data.fd]->readfront();
+						int bytes = conn->readfront();
 
 						if (bytes > 0){ //enable EPOLLOUT on opposite socket
-							epoll.modfd(fdmap[events[i].data.fd]->getbackfd(), EPOLLIN | EPOLLOUT);
+							conn->setreq(true);
+							conn->cedispatch(); // chaos engine dispatch
+							conn->setreq(false);
+
+							epoll.modfd(conn->getbackfd(), EPOLLIN | EPOLLOUT);
 						}else if (bytes == 0){// peer closed cleanup connection
 							clean(events[i]);
     						continue;
+						}else if(bytes == -2){
+							continue;
 						}else{
 							if (errno == EAGAIN){ //no more bytes available right now, dont disable EPOLLOUT
 								continue;
@@ -234,37 +236,41 @@ void ProxyServer::mainloop(){
 						}
 					}
 				
-				}else if (events[i].events & EPOLLOUT){
-					if (fdmap[events[i].data.fd]->getbackfd() == events[i].data.fd){//Backfd writable
-						int bytes = fdmap[events[i].data.fd]->writeback();
-						if (bytes == 0){ // TODO disable EPOLLOUT only when buff is empty // and ftbbytes == 0 ?
-							epoll.modfd( fdmap[events[i].data.fd]->getbackfd(), EPOLLIN );
-						}else{
-							if (errno == EAGAIN){ //no more bytes available right now
-								continue;
-							}else{
-								//cleanup connection
-								clean(events[i]);
-    							continue;
-							}
+				}else if (events[i].events & EPOLLOUT){ //TODO else if -> if
+					if (conn->getbackfd() == events[i].data.fd){//Backfd writable
+						int bytes = conn->writeback();
+
+						if(conn->getftbbytes() == 0){
+							epoll.modfd( conn->getbackfd(), EPOLLIN );
+						}
+						if(bytes < 0 && errno != EAGAIN){
+							clean(events[i]);
+    						continue;
 						}
 
 					}else{//frontfd writable
-						int bytes = fdmap[events[i].data.fd]->writefront();
-						if (bytes == 0){ 
-								epoll.modfd( fdmap[events[i].data.fd]->getfrontfd(), EPOLLIN );
-						}else{
-							if (errno == EAGAIN){ //no more bytes available right now
-								continue;
-							}else{
-								//cleanup connection
-								clean(events[i]);
-    							continue;
-							}
+						int bytes = conn->writefront();
+						if(conn->getbtfbytes() == 0){
+							epoll.modfd( conn->getfrontfd(), EPOLLIN );
 						}
+						if(bytes < 0 && errno != EAGAIN){
+							clean(events[i]);
+    						continue;
+						}
+						// if (bytes == 0){ 
+						// 		//epoll.modfd( conn->getfrontfd(), EPOLLIN );
+						// }else{
+						// 	if (errno == EAGAIN){ //no more bytes available right now
+						// 		continue;
+						// 	}else{
+						// 		//cleanup connection
+						// 		clean(events[i]);
+    					// 		continue;
+						// 	}
+						// }
 					}
 
-				}else{ // events[i].events & (EPOLLERR | EPOLLHUP)
+				}else{ //IF events[i].events & (EPOLLERR | EPOLLHUP)
 					//Socket broken ... close it
 					clean(events[i]);
     				continue;
