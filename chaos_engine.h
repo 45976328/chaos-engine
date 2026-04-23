@@ -23,11 +23,19 @@ class ChaosEngine{
         json j;
         unordered_map <string,function<void()>> registry;
 
-        const bool& request; //TODO PASS DIRECTION TO CHAOS ENGINE
+        random_device rd;
+        mt19937 gen{rd()};
+
+        const bool& request;
 		const bool& response;
 
+        int& ftbbytes;
+		int& ftb_offset;
+        int& btfbytes;
+		int& btf_offset;
+
     public:
-        ChaosEngine(char (&)[], char (&)[], bool&, bool&);
+        ChaosEngine(char (&)[], char (&)[], bool&, bool&, int&, int&, int&, int&);
         ~ChaosEngine();
 
         void register_all();

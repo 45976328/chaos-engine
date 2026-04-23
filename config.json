@@ -9,10 +9,15 @@
     "enabled": true,
   
     "chunk_drop": {
-      "enabled": true,
+      "enabled": false,
       "rate": 0.05,
       "direction": "request",
       "mode": "full"
+    },
+    "directional_drop": {
+      "enabled": true,
+      "rate": 0.05,
+      "direction": "response"
     },
     "burst_loss": {
       "enabled": false,
@@ -144,9 +149,9 @@
     },
 
     "observability": {
-      "logging": true,
+      "logging": false,
       "log_level": "debug",
-      "metrics": true
+      "metrics": false
     }
   }
 }

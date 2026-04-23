@@ -1,6 +1,8 @@
 #include "chaos_engine.h"
 
-ChaosEngine::ChaosEngine(char (&front_to_back_buff)[], char (&back_to_front_buff)[], bool& request, bool& response): request(request), response(response){
+ChaosEngine::ChaosEngine(char (&front_to_back_buff)[], char (&back_to_front_buff)[], bool& request, bool& response, int& ftbbytes, int& ftb_offset, int& btfbytes, int& btf_offset)
+    : request(request), response(response), ftbbytes(ftbbytes), ftb_offset(ftb_offset), btfbytes(btfbytes), btf_offset(btf_offset){
+    
     this->front_to_back_buff = front_to_back_buff;
     this->back_to_front_buff =  back_to_front_buff;
     
@@ -16,30 +18,28 @@ ChaosEngine::ChaosEngine(char (&front_to_back_buff)[], char (&back_to_front_buff
 
 ChaosEngine::~ChaosEngine(){}
 
-void ChaosEngine::chunk_drop(){ // https://en.cppreference.com/cpp/numeric/random/bernoulli_distribution
-    if (!j.at("chaos").at("chunk_drop").at("enabled")){return;}
-    random_device rd;
-    mt19937 gen(rd());
+void ChaosEngine::chunk_drop(){}
 
-    bernoulli_distribution d(j.at("chaos").at("chunk_drop").at("rate"));
+void ChaosEngine::directional_drop(){
+    // https://en.cppreference.com/cpp/numeric/random/bernoulli_distribution
+    if (!j.at("chaos").at("directional_drop").at("enabled")){return;}
+    
+    bernoulli_distribution d(j.at("chaos").at("directional_drop").at("rate"));
 
-    if(j.at("chaos").at("chunk_drop").at("direction") == "both"){
+    if(request && j.at("chaos").at("directional_drop").at("direction") == "request"){ // front sent data
         if (d(gen) == 1){
-            strcpy(front_to_back_buff, "");
-            strcpy(back_to_front_buff, ""); //TODO CHECK IF YOU NEED TO CHANGE OFFSETS and BYTES
+            // cout << "request: Triggered Directional Drop " << request <<endl;
+            ftbbytes = 0;
+            ftb_offset = 0;
         }
-        return;
-    }
-
-    if(request){ // front sent data
-
-    }else if (response){ //received data from back
-
-    }else{
-
+    }else if (response && j.at("chaos").at("directional_drop").at("direction") == "response"){ //received data from back
+        if (d(gen) == 1){
+            // cout << "response: Triggered Directional Drop " << response << endl;
+            btfbytes = 0;
+            btf_offset = 0;
+        }
     }
 }
-void ChaosEngine::directional_drop(){}
 
 
 void ChaosEngine::byte_corruption(){}
@@ -60,6 +60,7 @@ void ChaosEngine::logs(){}
 
 void ChaosEngine::register_all(){ //TODO lookup Static Auto-Registration 
         registry["chunk_drop"] = [this]() { chunk_drop(); };
+        registry["directional_drop"] = [this]() { directional_drop(); };
         registry["byte_corruption"] = [this]() { byte_corruption(); };
         registry["bit_flipping"] = [this]() { bit_flipping(); };
         registry["fixed_delay"] = [this]() { fixed_delay(); };
@@ -71,6 +72,7 @@ void ChaosEngine::register_all(){ //TODO lookup Static Auto-Registration
         }
 }
 void ChaosEngine::dispatch(){
+    if(!j.at("chaos").at("enabled")){return;}
     for(auto& i : registry){
         registry[i.first]();
     }
