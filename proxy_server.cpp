@@ -41,7 +41,7 @@ int Connection::writefront(){
 }
 
 int Connection::writeback(){
-    int sent = send(backfd, front_to_back_buff + ftb_offset, ftbbytes, 0); // TODO https://man7.org/linux/man-pages/man2/send.2.html FIND OUT IF ftbbytes affects send
+    int sent = send(backfd, front_to_back_buff + ftb_offset, ftbbytes, 0);
     if (sent > 0){
         ftb_offset += sent;
         ftbbytes -= sent;
@@ -178,7 +178,6 @@ void ProxyServer::mainloop(){
 			if (events[i].data.fd == front.getListeningSocket()){ // check if event triggered is Listening Socket fd
 				this->addconnections();
 			}else{
-				//TODO likely fix on segmentation fault bug
 				auto it = fdmap.find(events[i].data.fd);
 				if (it == fdmap.end())
 					continue;
@@ -236,7 +235,7 @@ void ProxyServer::mainloop(){
 						}
 					}
 				
-				}else if (events[i].events & EPOLLOUT){ //TODO else if -> if
+				}else if (events[i].events & EPOLLOUT){
 					if (conn->getbackfd() == events[i].data.fd){//Backfd writable
 						int bytes = conn->writeback();
 

@@ -11,13 +11,12 @@
     "chunk_drop": {
       "enabled": false,
       "rate": 0.05,
-      "direction": "request",
-      "mode": "full"
+      "direction": "response"
     },
     "directional_drop": {
-      "enabled": true,
+      "enabled": false,
       "rate": 0.05,
-      "direction": "response"
+      "direction": "request"
     },
     "burst_loss": {
       "enabled": false,
@@ -34,8 +33,7 @@
     "byte_corruption": {
       "enabled": false,
       "rate": 0.01,
-      "direction": "response",
-      "mode": "random"
+      "direction": "both"
     },
     "bit_flipping": {
       "enabled": false,
